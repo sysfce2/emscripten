@@ -186,7 +186,7 @@ addToLibrary({
   // it. Returns 1 on success, 0 on error.
   $growMemory: (size) => {
     var b = wasmMemory.buffer;
-    var pages = (size - b.byteLength + {{{ WASM_PAGE_SIZE - 1 }}}) / {{{ WASM_PAGE_SIZE }}};
+    var pages = ((size - b.byteLength + {{{ WASM_PAGE_SIZE - 1 }}}) / {{{ WASM_PAGE_SIZE }}}) | 0;
 #if RUNTIME_DEBUG
     dbg(`growMemory: ${size} (+${size - b.byteLength} bytes / ${pages} pages)`);
 #endif
@@ -195,7 +195,7 @@ addToLibrary({
 #endif
     try {
       // round size grow request up to wasm page size (fixed 64KB per spec)
-      wasmMemory.grow(pages); // .grow() takes a delta compared to the previous size
+      wasmMemory.grow({{{ toIndexType('pages') }}}); // .grow() takes a delta compared to the previous size
       updateMemoryViews();
 #if MEMORYPROFILER
       if (typeof emscriptenMemoryProfiler != 'undefined') {
@@ -1073,7 +1073,7 @@ addToLibrary({
         if (family === {{{ cDefs.AF_INET }}}) {
           addr = _htonl({{{ cDefs.INADDR_LOOPBACK }}});
         } else {
-          addr = [0, 0, 0, 1];
+          addr = [0, 0, 0, _htonl(1)];
         }
       }
       ai = allocaddrinfo(family, type, proto, null, addr, port);
@@ -1534,7 +1534,7 @@ addToLibrary({
   emscripten_log__deps: ['$formatString', '$emscriptenLog'],
   emscripten_log: (flags, format, varargs) => {
     var result = formatString(format, varargs);
-    var str = UTF8ArrayToString(result, 0);
+    var str = UTF8ArrayToString(result);
     emscriptenLog(flags, str);
   },
 
@@ -1947,10 +1947,8 @@ addToLibrary({
 
   $callRuntimeCallbacks__internal: true,
   $callRuntimeCallbacks: (callbacks) => {
-    while (callbacks.length > 0) {
-      // Pass the module as the first argument.
-      callbacks.shift()(Module);
-    }
+    // Pass the module as the first argument.
+    callbacks.forEach((f) => f(Module));
   },
 
 #if SHRINK_LEVEL == 0 || ASYNCIFY == 2
